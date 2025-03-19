@@ -289,7 +289,7 @@ def create_arrow_plot(finaldf, df3, images_path,module_name):
 
  
 
-    save_path = os.path.join(images_path, f"Arrowplot_{module_name}.jpg")
+    save_path = os.path.join(images_path, f"Tornado_plot_{module_name}.jpg")
     plt.savefig(save_path, dpi=100, bbox_inches='tight')
     #plt.show()
 
