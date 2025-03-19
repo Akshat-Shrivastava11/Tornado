@@ -11,18 +11,24 @@ import seaborn as sns
 #import imutils
 from math import dist
 import pandas as pd
+from matplotlib.patches import RegularPolygon
 
 def get_module_paths(module_name):
-    base_dir = os.path.join('/home/akshriva/AIgantry/Tornado/Web', 'Modules')
+    #base_dir = os.path.join('/home/akshriva/AIgantry/Tornado/Web', 'Modules')
+    current_dir = os.getcwd()
+    current_dir = str(current_dir)
+    base_dir = os.path.join(current_dir, 'Modules')
     images_dir = os.path.join(base_dir, module_name, 'Results')
+    #images_dir = os.path.join(base_dir, module_name,)   
     labels_dir = os.path.join(base_dir, module_name, 'Results','labels')
-
+    #print(current_dir)
     if not os.path.exists(images_dir):
         os.makedirs(images_dir)
     return images_dir, labels_dir
 
 def process_labels(label_path, img_path):
     dict1 = {}
+    print("IMG PATH",img_path)
     for name in os.listdir(img_path):
         if ".jpg" in name:
             try:
@@ -85,6 +91,7 @@ def synchronize_dicts(dict1, dict2):
 
 def process_and_generate_df(img_path, label_path):
     dict1 = process_labels(label_path, img_path)  
+    print("DICT ! ",dict1)
     dict2 = detect_hough_circles(img_path)
     dict1, dict2 = synchronize_dicts(dict1, dict2)
 
@@ -135,13 +142,18 @@ def process_and_generate_df(img_path, label_path):
 
 def sort_dataframe_by_image_number(df1):
     df2 = df1.copy()
-    df2['ImageNumber'] = df2['Images'].str.extract('(\d+)').astype(int)
+    print(df2)
+    #df2['ImageNumber'] = df2['Images'].str.extract('(\d+)').astype(int)
+    #print('DF2:::',df2)
+    df2['ImageNumber'] = df2['Images'].astype(str).str.extract('(\d+)').astype(float).astype('Int64')
+    print('DF2:::',df2)
     df2 = df2.sort_values(by='ImageNumber')
+    print(df2)
     df3=df2.copy()
     df3=df3.reset_index(drop=True)
     df2 = df2.reset_index(drop=True)
     #df2 = df2.drop(columns=['ImageNumber'])
-    print(df2)
+    print("DF 2",df2)
     print(df3)
     return df2,df3
 
@@ -168,26 +180,40 @@ def process_files_and_append_to_df(images_path,df3):
         "X": x_values,
         "Y": y_values,
     })
-    df3['ImageNumber'] = df3['Images'].str.extract('(\d+)').astype(int)
+    #df3['ImageNumber'] = df3['Images'].str.extract('(\d+)').astype(int)
+    df3['ImageNumber'] = df3['Images'].astype(str).str.extract('(\d+)').astype(float).astype('Int64')
+    #df3['ImageNumber'] = df3['Images'].astype(str).str.extract('(\d+)')[0]
+    #df3['ImageNumber'] = df3['ImageNumber'].fillna(-1).astype(int)  # Replace NaN with -1 before conversion
+    df3 = df3[df3['ImageNumber'] != -1] 
+    print('____1st_________',df3)
+    #df3_sorted = df3.sort_values(by='ImageNumber')
     df3_sorted = df3.sort_values(by='ImageNumber')
+    print('____1st__sorted_______',df3_sorted)
     df3_sorted=df3_sorted[df3_sorted['ImageNumber'].isin(df3['ImageNumber'])]
+    print('_____________',df3_sorted)
     df3_sorted = df3_sorted.reset_index(drop=True)
-    df3_sorted = df3_sorted.drop(columns=['ImageNumber'])
+    print('_____________',df3_sorted)
+    #df3_sorted = df3_sorted.drop(columns=['ImageNumber'])
+    print('__________ihjafiosjgiopajsepgjkaeos[gk[___',df3_sorted)
     return df3_sorted
 
 def finaldf(df2, df3_sorted):
     finaldf = df2.merge(df3_sorted[['X','Y']], left_on='ImageNumber', right_index=True, how='left')
-    print (finaldf)
+    print("FINAL DF",finaldf)
     return finaldf
 
 
-def create_arrow_plot(finaldf, df3, images_path):
+def create_arrow_plot(finaldf, df3, images_path,module_name):
     x = np.array(finaldf['X'])
     y = np.array(finaldf['Y'])
     angles = np.array(finaldf['Angles'])
     r = np.array(finaldf['r'])
     
-    fig, ax = plt.subplots()
+    #fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(8,7)) #rectangle
+    #fig.set_size_inches(6, 6)  # Make it a square
+    plt.tight_layout()  # Adjust layout to remove excess space
+    #plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)  # Fine-tune margins
 
     U = [r_value * math.cos(math.radians(-angle)) for angle, r_value in zip(angles, r)]
     V = [r_value * math.sin(math.radians(-angle)) for angle, r_value in zip(angles, r)]
@@ -197,41 +223,85 @@ def create_arrow_plot(finaldf, df3, images_path):
         ax.quiver(x[i], y[i], U[i], V[i], scale=110, color='b', width=0.008)
 
     for i, label in enumerate(df3['ImageNumber']):
+        print(label)
         plt.annotate(label, (x[i], y[i]), color='red', weight='bold', ha='center')
 
-    ax.set_xlim(-60, 150)
-    ax.set_ylim(-20, 240)
-    ax.set_xticks([])
-    ax.set_yticks([])
+    '''ADDing hexagon '''
+    center_x, center_y = np.mean(x), np.mean(y)  # Center at the middle of the arrows
+    hex_size = 1.12*max(x.max() - x.min(), y.max() - y.min()) / 2 
+    hexagon = RegularPolygon((center_x, center_y), numVertices=6, radius=hex_size, 
+                         edgecolor='black', facecolor='none', linewidth=2,orientation=np.radians(30))
+    ax.add_patch(hexagon)
+    ax.set_aspect('equal') 
+
+
+    #ax.set_xlim(-60, 150) #Nominal Values
+    #ax.set_ylim(-60, 240)
+    ax.set_xlim(x.min() - 5, x.max() + 5)  # Remove extra padding on x-axis
+    ax.set_ylim(y.min() - 5, y.max() + 5)  # Remove extra padding on y-axis
+    ax.set_aspect('equal') 
+    #ax.grid(True)
+    ax.set_xticks(np.arange(-60, 150, 50))  # Major ticks every 50 units
+    ax.set_yticks(np.arange(-10, 240, 10)) #-40, 240, 10
 
     reference_arrow = finaldf[finaldf['r'] == finaldf['r'].max()].index[0]
-
+    reference_arrow1 = finaldf[finaldf['r'] == finaldf['r'].min()].index[0]
+    average_r = finaldf['r'].mean()
+    reference_arrow2 = (finaldf['r'] - average_r).abs().idxmin()
+    
     arrow_length = math.sqrt(U[reference_arrow]**2 + V[reference_arrow]**2)
-
+    arrow_length1 = math.sqrt(U[reference_arrow1]**2 + V[reference_arrow1]**2)
+    arrow_length2 = math.sqrt(U[reference_arrow2]**2 + V[reference_arrow2]**2)
+    
     ax.quiver(x[reference_arrow], y[reference_arrow], U[reference_arrow], V[reference_arrow], scale=110, color='g', width=0.008)
+    ax.quiver(x[reference_arrow1], y[reference_arrow1], U[reference_arrow1], V[reference_arrow1], scale=110, color='black', width=0.008)
+    ax.quiver(x[reference_arrow2], y[reference_arrow2], U[reference_arrow2], V[reference_arrow2], scale=110, color='y', width=0.008)
 
-    bottom_left_x, bottom_left_y = -40, 180  # Adjust these values as needed
+    
+    bottom_left_x, bottom_left_y = -40,180  # Adjust these values as needed base: -40 and 180
     ax.quiver(bottom_left_x, bottom_left_y, arrow_length, 0, scale=110, color='g', width=0.008)
+    bottom_left_x1, bottom_left_y1 = -40, 195 #nominal values -40,195
+    bottom_left_x2, bottom_left_y2 = -40, 220 #nominal values -40,220
+    ax.quiver(bottom_left_x, bottom_left_y, arrow_length, 0, scale=110, color='g', width=0.008)
+    ax.quiver(bottom_left_x1, bottom_left_y1, arrow_length1, 0, scale=110, color='black', width=0.008)
+    ax.quiver(bottom_left_x1, bottom_left_y2, arrow_length2, 0, scale=110, color='y', width=0.008)
 
-    ax.annotate(f'Length: {(arrow_length) * 2 / 103:.2f}mm', (bottom_left_x + arrow_length, bottom_left_y + 5), color='red', fontsize=8, weight='bold', ha='center')
 
-    ax.set_title('Combined Arrowplots')
-    ax.grid(True)
+    ax.annotate(f'Length(Longest): {(arrow_length) * 2 / 103:.2f}mm', 
+            (bottom_left_x + arrow_length + 10, bottom_left_y), color='red', fontsize=8, weight='bold', ha='left', 
+            bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+
+    ax.annotate(f'Length(Smallest): {(arrow_length1) * 2 / 103:.2f}mm', 
+                (bottom_left_x1 + arrow_length1 + 10, bottom_left_y1), color='red', fontsize=8, weight='bold', ha='left', 
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+
+    ax.annotate(f'Length(Mean): {(arrow_length2) * 2 / 103:.2f}mm', 
+                (bottom_left_x1 + arrow_length2 + 10, bottom_left_y2), color='red', fontsize=8, weight='bold', ha='left', 
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+
+    ax.set_title(f'Tornado plot {module_name} ')
+    #ax.grid(True)
     plt.tight_layout()
+    #plt.grid(True)
     print('got here right before saving it ')
     print('image path ',images_path)
-    save_path = os.path.join(images_path, "Arrowplot.jpg")
-    plt.savefig(save_path, dpi=100)
+
+
+ 
+
+    save_path = os.path.join(images_path, f"Arrowplot_{module_name}.jpg")
+    plt.savefig(save_path, dpi=100, bbox_inches='tight')
     #plt.show()
 
 def main():
     module_name = input("Enter the module name (e.g., 'M35'): ")
     images_path, labels_path = get_module_paths(module_name)
+    print(images_path)
     df1, df3 = process_and_generate_df(images_path, labels_path)
     df3_sorted = process_files_and_append_to_df(images_path,df3)
     final_df = finaldf(df1, df3_sorted)
     print('finished final df')
-    create_arrow_plot(final_df, df3, images_path)
+    create_arrow_plot(final_df, df3, images_path,module_name)
     print('done')
 if __name__ == "__main__":
     main()
